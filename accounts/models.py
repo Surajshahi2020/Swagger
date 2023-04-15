@@ -1,4 +1,6 @@
 from django.db import models
+from django.contrib.auth.hashers import check_password
+
 
 class Member(models.Model):
     firstname = models.CharField(max_length=255)
@@ -10,4 +12,6 @@ class Member(models.Model):
     role = models.CharField(max_length=2)
     is_active = models.BooleanField(default=True)
     is_blocked = models.BooleanField(default=True)
-    
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)

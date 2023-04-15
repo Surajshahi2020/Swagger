@@ -22,6 +22,8 @@ from accounts.api.viewsets.accounts import (
     UserDeleteView,
     UserUpdateView,
     UserDetailView,
+    EmailLoginView,
+    CustomTokenRefreshView,
 )
 from drf_spectacular.views import (
     SpectacularAPIView,
@@ -36,6 +38,8 @@ urlpatterns = [
     path("user-detail/<int:pk>", UserDetailView.as_view()),
     path("user-delete/<int:pk>/", UserDeleteView.as_view()),
     path("user-update/<int:pk>/", UserUpdateView.as_view()),
+    path("user-login/", EmailLoginView.as_view()),
+    path("refresh/", CustomTokenRefreshView.as_view()),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     # Optional UI:
     path(

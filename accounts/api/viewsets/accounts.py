@@ -1,21 +1,32 @@
 from rest_framework import generics, status
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 from drf_spectacular.utils import (
     extend_schema,
     extend_schema_view,
     OpenApiResponse,
 )
-from accounts.api.serializers.accounts import MemberSerializer, MemberUpdateSerializer
+from accounts.api.serializers.accounts import (
+    MemberSerializer,
+    MemberUpdateSerializer,
+    LoginSerializer,
+)
 from common.pagination import CustomPagination
 from common.serializer import OperationError, OperationSuccess
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from common.exceptions import UnprocessableEntityException
+
+
 from rest_framework.response import Response
 from rest_framework import viewsets
 from accounts.models import Member
+import datetime
 
 
 @extend_schema_view(
     post=extend_schema(
-        description="User Create Api",
-        summary="Refer To Schemas At Bottom",
+        description="Creating user details",
+        summary="User create ",
         request=MemberSerializer,
         responses={
             200: OpenApiResponse(
@@ -31,7 +42,6 @@ from accounts.models import Member
     ),
 )
 class UserCreateView(generics.CreateAPIView):
-    queryset = Member.objects.all()
     serializer_class = MemberSerializer
 
     def create(self, request, *args, **kwargs):
@@ -125,7 +135,7 @@ class UserDetailView(generics.RetrieveAPIView):
 @extend_schema_view(
     delete=extend_schema(
         description="My User Delete Api",
-        summary="Uer Deleted Details",
+        summary="User Deleted Details",
         responses={
             200: OpenApiResponse(
                 response=OperationSuccess,
@@ -184,7 +194,7 @@ class UserUpdateView(generics.UpdateAPIView):
     ]
 
     def patch(self, request, *args, **kwargs):
-        partial = kwargs.pop("partial", False)
+        partial = kwargs.pop("partial", True)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
@@ -196,4 +206,115 @@ class UserUpdateView(generics.UpdateAPIView):
                 "message": "User Updated Successfully!",
                 "data": updated_data,
             }
+        )
+
+
+@extend_schema_view(
+    post=extend_schema(
+        description="User Login Api",
+        summary="Email Login Api",
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(
+                response=OperationSuccess,
+                description="Success Response when user is loggedin successfully!",
+            ),
+            422: OpenApiResponse(
+                response=OperationError,
+                description="Json Data Error, occurs when invalid data is sent!",
+            ),
+        },
+        tags=["Login Apis"],
+    ),
+)
+class EmailLoginView(generics.CreateAPIView):
+    serializer_class = LoginSerializer
+
+    def create(self, request, *args, **kwargs):
+        data = request.data
+        user = Member.objects.filter(email=data.get("email"))
+        if user.exists():
+            user: Member = user.first()
+            if user.is_blocked:
+                return Response(
+                    {
+                        "title": "Login",
+                        "message": "Account Blocked !",
+                    },
+                    status=401,
+                )
+            if user.password == data.get("password"):
+                refresh = RefreshToken.for_user(user)
+                refresh.set_exp(lifetime=datetime.timedelta(days=14))
+                access = refresh.access_token
+                access.set_exp(lifetime=datetime.timedelta(days=1))
+                return Response(
+                    {
+                        "title": "Login",
+                        "message": "Logged in successfully !",
+                        "data": {
+                            **MemberSerializer(user, many=False).data,
+                            "access": f"{access}",
+                            "refresh": f"{refresh}",
+                        },
+                    },
+                    status=200,
+                )
+            else:
+                return Response(
+                    {
+                        "title": "Login",
+                        "message": "Password incorrect !",
+                    },
+                    status=422,
+                )
+        else:
+            return Response(
+                {
+                    "title": "Login",
+                    "message": "Email does not exist!",
+                },
+                status=422,
+            )
+
+
+@extend_schema_view(
+    post=extend_schema(
+        description="User Refresh Api",
+        summary="Refresh Token Api",
+        responses={
+            200: OpenApiResponse(
+                response=OperationSuccess,
+                description="Success Response when token refreshed successfully!",
+            ),
+            422: OpenApiResponse(
+                response=OperationError,
+                description="Json Data Error, occurs when invalid data is sent!",
+            ),
+        },
+        tags=["Login Apis"],
+    ),
+)
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise UnprocessableEntityException(
+                {
+                    "title": "Login Refresh",
+                    "message": e.args[0],
+                },
+                code=422,
+            )
+
+        return Response(
+            {
+                "title": "Login Refresh",
+                "message": "Login Refreshed Successfully!",
+                "data": serializer.validated_data,
+            },
+            status=200,
         )

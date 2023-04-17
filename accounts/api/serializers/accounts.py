@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from accounts.models import Member
+from django.contrib.auth.hashers import make_password
 
 
 class MemberSerializer(serializers.ModelSerializer):
@@ -8,8 +9,12 @@ class MemberSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def create(self, validated_data):
-        member = Member.objects.create(**validated_data)
-        member.save()
+        password = validated_data.pop("password")
+        hashed_password = make_password(password)
+        member = Member.objects.create(
+            password=hashed_password,
+            **validated_data,
+        )
         return member
 
 

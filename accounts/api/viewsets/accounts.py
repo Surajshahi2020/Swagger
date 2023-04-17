@@ -21,6 +21,17 @@ from rest_framework.response import Response
 from rest_framework import viewsets
 from accounts.models import Member
 import datetime
+import json
+from rest_framework.permissions import BasePermission
+
+
+class IsAuthenticated(BasePermission):
+    """
+    Allows access only to authenticated users.
+    """
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
 
 
 @extend_schema_view(
@@ -46,6 +57,19 @@ class UserCreateView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         data = request.data
+        if "email" not in data:
+            return Response(
+                {"title": "User create", "message": "Email is required"},
+                status=422,
+            )
+        if Member.objects.filter(email=data["email"]).exists():
+            return Response(
+                {
+                    "title": "User Create",
+                    "message": "User with this Email already exists !",
+                },
+                status=422,
+            )
         serializer = self.get_serializer(None, request.data)
         serializer.is_valid(raise_exception=True)
         dat = serializer.create(serializer.validated_data)
@@ -81,6 +105,7 @@ class UserListView(generics.ListAPIView):
     queryset = Member.objects.all()
     serializer_class = MemberSerializer
     pagination_class = CustomPagination
+    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -124,6 +149,7 @@ class UserListView(generics.ListAPIView):
 )
 class UserDetailView(generics.RetrieveAPIView):
     queryset = Member.objects.all()
+    permission_classes = [IsAuthenticated]
     serializer_class = MemberSerializer
 
     def get(self, request, *args, **kwargs):
@@ -151,6 +177,7 @@ class UserDetailView(generics.RetrieveAPIView):
 )
 class UserDeleteView(generics.DestroyAPIView):
     queryset = Member.objects.all()
+    permission_classes = [IsAuthenticated]
     serializer_class = MemberSerializer
 
     def destroy(self, request, *args, **kwargs):
@@ -187,6 +214,7 @@ class UserDeleteView(generics.DestroyAPIView):
 )
 class UserUpdateView(generics.UpdateAPIView):
     queryset = Member.objects.all()
+    permission_classes = [IsAuthenticated]
     serializer_class = MemberUpdateSerializer
 
     http_method_names = [
@@ -196,6 +224,23 @@ class UserUpdateView(generics.UpdateAPIView):
     def patch(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", True)
         instance = self.get_object()
+        data = request.data
+
+        if "email" in data:
+            if data["email"] != "":
+                if (
+                    Member.objects.filter(email=data["email"]).first()
+                    != self.request.user
+                    and data["email"]
+                ):
+                    return Response(
+                        {
+                            "title": "User Update",
+                            "message": "Email already linked with another user!",
+                        },
+                        status=422,
+                    )
+
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -243,7 +288,7 @@ class EmailLoginView(generics.CreateAPIView):
                     },
                     status=401,
                 )
-            if user.password == data.get("password"):
+            if user.check_password(data.get("password")):
                 refresh = RefreshToken.for_user(user)
                 refresh.set_exp(lifetime=datetime.timedelta(days=14))
                 access = refresh.access_token

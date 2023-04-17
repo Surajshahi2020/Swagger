@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -54,6 +55,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "eduzeit_lms.urls"
 
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -70,6 +72,22 @@ TEMPLATES = [
     },
 ]
 
+DATABASES = {
+    # "default": {
+    #     "ENGINE": "django.db.backends.sqlite3",
+    #     "NAME": BASE_DIR / "db.sqlite3",
+    # },
+    "default": {
+        "ENGINE": "django.db.backends.postgresql_psycopg2",
+        "NAME": os.environ.get("POSTGRES_DB", "softbenz"),
+        "USER": os.environ.get("POSTGRES_USER", "suraj"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "highspeed12"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+    }
+}
+
+
 WSGI_APPLICATION = "eduzeit_lms.wsgi.application"
 
 REST_FRAMEWORK = {
@@ -77,6 +95,10 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 100,
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.AllowAny",),
 }
 
 SPECTACULAR_SETTINGS = {
@@ -91,13 +113,8 @@ SPECTACULAR_SETTINGS = {
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
 
+AUTH_USER_MODEL = "accounts.Member"
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
